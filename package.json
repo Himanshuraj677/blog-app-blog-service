@@ -8,7 +8,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc",
     "dev": "tsx watch src/server.ts",
-    "start": "tsc && node dist/server.js"
+    "start": "tsc && node dist/server.js",
+    "postinstall": "prisma generate"
   },
   "keywords": [],
   "author": "",
