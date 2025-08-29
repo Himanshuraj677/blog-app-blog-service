@@ -1,11 +1,11 @@
 import { NextFunction, Request, Response } from "express";
 import { readingTimeFromTiptap } from "../utils/readingTimeEstimator";
 import { prisma } from "../config/db";
+import { Engagement } from "../types/engagement";
 
 export const blogController = {
   // ✅ Create Blog
   createBlog: async (req: Request, res: Response, next: NextFunction) => {
-    try {
       const { title, content, excerpt, tags, status, featuredImage } = req.body;
       if (!title || !content || !excerpt || !status || !featuredImage) {
         return res
@@ -43,9 +43,6 @@ export const blogController = {
         message: "Blog is created successfully",
         data: blog,
       });
-    } catch (error) {
-      next(error);
-    }
   },
 
   // ✅ Get single blog by ID
@@ -58,9 +55,10 @@ export const blogController = {
       }
 
       // Increment views count
+      const engagement = blog.engagement as Engagement;
       await prisma.blog.update({
         where: { id },
-        data: { engagement: { ...blog.engagement as Json, views: blog.engagement.views + 1 } },
+        data: { engagement: { ...engagement, views: engagement.views + 1 } },
       });
 
       return res.status(200).json({ success: true, data: blog });
@@ -68,7 +66,6 @@ export const blogController = {
 
   // ✅ Get all blogs (with filters and pagination)
   getAllBlogs: async (req: Request, res: Response, next: NextFunction) => {
-    try {
       const { status, tag, page = 1, limit = 10 } = req.query;
       const skip = (Number(page) - 1) * Number(limit);
 
@@ -83,14 +80,10 @@ export const blogController = {
       });
 
       return res.status(200).json({ success: true, data: blogs });
-    } catch (error) {
-      next(error);
-    }
   },
 
   // ✅ Update blog
   updateBlog: async (req: Request, res: Response, next: NextFunction) => {
-    try {
       const { id } = req.params;
       const { title, content, excerpt, tags, status, featuredImage } = req.body;
 
@@ -118,14 +111,10 @@ export const blogController = {
       return res
         .status(200)
         .json({ success: true, message: "Blog updated successfully", data: updatedBlog });
-    } catch (error) {
-      next(error);
-    }
   },
 
   // ✅ Delete blog
   deleteBlog: async (req: Request, res: Response, next: NextFunction) => {
-    try {
       const { id } = req.params;
       const blog = await prisma.blog.findUnique({ where: { id } });
 
@@ -136,14 +125,10 @@ export const blogController = {
       await prisma.blog.delete({ where: { id } });
 
       return res.status(200).json({ success: true, message: "Blog deleted successfully" });
-    } catch (error) {
-      next(error);
-    }
   },
 
   // ✅ Like blog
   likeBlog: async (req: Request, res: Response, next: NextFunction) => {
-    try {
       const { id } = req.params;
       const blog = await prisma.blog.findUnique({ where: { id } });
 
@@ -153,18 +138,15 @@ export const blogController = {
 
       const updatedBlog = await prisma.blog.update({
         where: { id },
-        data: { engagement: { ...blog.engagement, likes: blog.engagement.likes + 1 } },
+        data: { engagement: { ...blog.engagement as Engagement, likes: (blog.engagement as Engagement).likes + 1 } },
       });
 
       return res.status(200).json({ success: true, data: updatedBlog });
-    } catch (error) {
-      next(error);
-    }
+
   },
 
   // ✅ Bookmark blog
   bookmarkBlog: async (req: Request, res: Response, next: NextFunction) => {
-    try {
       const { id } = req.params;
       const blog = await prisma.blog.findUnique({ where: { id } });
 
@@ -174,12 +156,10 @@ export const blogController = {
 
       const updatedBlog = await prisma.blog.update({
         where: { id },
-        data: { engagement: { ...blog.engagement, bookmarks: blog.engagement.bookmarks + 1 } },
+        data: { engagement: { ...blog.engagement as Engagement, bookmarks: (blog.engagement as Engagement).bookmarks + 1 } },
       });
 
       return res.status(200).json({ success: true, data: updatedBlog });
-    } catch (error) {
-      next(error);
-    }
+
   },
 };
