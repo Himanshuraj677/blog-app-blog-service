@@ -66,9 +66,20 @@ export const blogController = {
 
   // ✅ Get all blogs (with filters and pagination)
   getAllBlogs: async (req: Request, res: Response, next: NextFunction) => {
-    const { status, tag, page = 1, limit = 10 } = req.query;
-    const skip = (Number(page) - 1) * Number(limit);
+    const { status, tag, page = "1", limit = "10" } = req.query;
+    const pageNum = Number(page);
+    const limitNum = Number(limit);
+    const skip = (pageNum - 1) * limitNum;
 
+    // Get total count of blogs matching filter
+    const totalBlogs = await prisma.blog.count({
+      where: {
+        status: status ? String(status) : undefined,
+        tags: tag ? { has: String(tag) } : undefined,
+      },
+    });
+
+    // Fetch paginated blogs
     const blogs = await prisma.blog.findMany({
       where: {
         status: status ? String(status) : undefined,
@@ -76,10 +87,23 @@ export const blogController = {
       },
       orderBy: { createdAt: "desc" },
       skip,
-      take: Number(limit),
+      take: limitNum,
     });
 
-    return res.status(200).json({ success: true, data: blogs });
+    const totalPages = Math.ceil(totalBlogs / limitNum);
+
+    return res.status(200).json({
+      success: true,
+      data: blogs,
+      pagination: {
+        total: totalBlogs,
+        page: pageNum,
+        limit: limitNum,
+        totalPages,
+        hasNextPage: pageNum < totalPages,
+        hasPrevPage: pageNum > 1,
+      },
+    });
   },
 
   // ✅ Update blog
