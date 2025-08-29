@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from "express";
-import { supabase } from "../config/supabase.config";
-import AppError from "../utils/AppError";
+import { supabase } from "../config/supabase.config.js";
+import AppError from "../utils/AppError.js";
 
 export const imageController = {
     getSignedUrl: async (req: Request, res: Response, next: NextFunction) => {
