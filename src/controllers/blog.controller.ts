@@ -1,7 +1,7 @@
 import { NextFunction, Request, Response } from "express";
-import { readingTimeFromTiptap } from "../utils/readingTimeEstimator";
-import { prisma } from "../config/db";
-import { Engagement } from "../types/engagement";
+import { readingTimeFromTiptap } from "../utils/readingTimeEstimator.js";
+import { prisma } from "../config/db.js";
+import { Engagement } from "../types/engagement.js";
 
 export const blogController = {
   // ✅ Create Blog
