@@ -22,7 +22,7 @@ export const errorhandler = (
 
   const statusCode = (err as any)?.statusCode || 500;
   const message = (err as any)?.message || "Unknown server error";
-  console.error(message);
+  // console.error(message);
   return res.status(statusCode).json({
     success: false,
     message,

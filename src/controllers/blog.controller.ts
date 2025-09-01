@@ -1,7 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import { readingTimeFromTiptap } from "../utils/readingTimeEstimator.js";
 import { prisma } from "../config/db.js";
-import { Engagement } from "../types/engagement.js";
+import { success } from "zod";
 
 export const blogController = {
   // ✅ Create Blog
@@ -14,13 +14,6 @@ export const blogController = {
     }
 
     const readingTime = readingTimeFromTiptap(content);
-    const engagement = {
-      likes: 0,
-      bookmarks: 0,
-      comments: 0,
-      views: 0,
-      shares: 0,
-    };
 
     const payload = {
       title,
@@ -32,7 +25,7 @@ export const blogController = {
       status,
       featuredImage,
       readingTime,
-      engagement,
+      views: 0,
       publishedAt: status === "published" ? new Date() : null,
     };
 
@@ -48,20 +41,40 @@ export const blogController = {
   // ✅ Get single blog by ID
   getBlog: async (req: Request, res: Response, next: NextFunction) => {
     const { id } = req.params;
-    const blog = await prisma.blog.findUnique({ where: { id } });
+    const blog = await prisma.blog.findUnique({
+      where: { id },
+      include: {
+        bookmarks: {
+          select: { id: true },
+        },
+        likes: {
+          select: { id: true },
+        },
+        comments: {
+          select: { id: true },
+        },
+      },
+    });
 
     if (!blog) {
       return res.status(404).json({ success: false, error: "Blog not found" });
     }
 
-    // Increment views count
-    const engagement = blog.engagement as Engagement;
-    await prisma.blog.update({
+    const updatedBlog = await prisma.blog.update({
       where: { id },
-      data: { engagement: { ...engagement, views: engagement.views + 1 } },
+      data: { views: blog.views + 1 },
     });
 
-    return res.status(200).json({ success: true, data: blog });
+    const blogWithEngagement = {
+      ...blog,
+      engagement: { 
+        likes: blog.likes.length,
+        views: updatedBlog.views,
+        comments: blog.comments.length,
+        bookmarks: blog.bookmarks.length
+      },
+    };
+    return res.status(200).json({ success: true, data: blogWithEngagement });
   },
 
   // ✅ Get all blogs (with filters and pagination)
@@ -85,16 +98,39 @@ export const blogController = {
         status: status ? String(status) : undefined,
         tags: tag ? { has: String(tag) } : undefined,
       },
+      include: {
+        bookmarks: {
+          select: { id: true },
+        },
+        likes: {
+          select: { id: true },
+        },
+        comments: {
+          select: { id: true },
+        },
+      },
       orderBy: { createdAt: "desc" },
       skip,
       take: limitNum,
     });
 
+    const blogWithEngagement = blogs.map((blog) => (
+      {
+      ...blog,
+      engagement: { 
+        likes: blog.likes.length,
+        views: blog.views + 1,
+        comments: blog.comments.length,
+        bookmarks: blog.bookmarks.length
+      },
+    }
+    ))
+
     const totalPages = Math.ceil(totalBlogs / limitNum);
 
     return res.status(200).json({
       success: true,
-      data: blogs,
+      data: blogWithEngagement,
       pagination: {
         total: totalBlogs,
         page: pageNum,
@@ -134,13 +170,11 @@ export const blogController = {
       },
     });
 
-    return res
-      .status(200)
-      .json({
-        success: true,
-        message: "Blog updated successfully",
-        data: updatedBlog,
-      });
+    return res.status(200).json({
+      success: true,
+      message: "Blog updated successfully",
+      data: updatedBlog,
+    });
   },
 
   // ✅ Delete blog
@@ -162,23 +196,22 @@ export const blogController = {
   // ✅ Like blog
   likeBlog: async (req: Request, res: Response, next: NextFunction) => {
     const { id } = req.params;
+    console.log(id);
     const blog = await prisma.blog.findUnique({ where: { id } });
 
     if (!blog) {
       return res.status(404).json({ success: false, error: "Blog not found" });
     }
 
-    const updatedBlog = await prisma.blog.update({
-      where: { id },
+    const likeBlog = await prisma.like.create({
       data: {
-        engagement: {
-          ...(blog.engagement as Engagement),
-          likes: (blog.engagement as Engagement).likes + 1,
-        },
+        blogId: id,
+        userId: req?.user?.id || "someanonymoususer",
       },
     });
 
-    return res.status(200).json({ success: true, data: updatedBlog });
+
+    return res.status(200).json({ success: true, data: likeBlog });
   },
 
   // ✅ Bookmark blog
@@ -190,16 +223,40 @@ export const blogController = {
       return res.status(404).json({ success: false, error: "Blog not found" });
     }
 
-    const updatedBlog = await prisma.blog.update({
-      where: { id },
+    const bookmarkBlog = await prisma.bookmarks.create({
       data: {
-        engagement: {
-          ...(blog.engagement as Engagement),
-          bookmarks: (blog.engagement as Engagement).bookmarks + 1,
-        },
+        blogId: id,
+        userId: req?.user?.id || "someanonymoususer",
       },
     });
 
-    return res.status(200).json({ success: true, data: updatedBlog });
+    return res.status(200).json({ success: true, data: bookmarkBlog });
   },
+
+  commentBlog: async (req: Request, res: Response, next: NextFunction) => {
+    const {id} = req.params;
+    const {comment: content} = req.body;
+    const commentBlog = await prisma.comment.create({
+      data: {
+        blogId: id,
+        userId: req?.user?.id || "someanonymoususer",
+        content
+      }
+    });
+
+    return res.status(200).json({success: true, data: commentBlog})
+  },
+
+  updateCommentBlog: async(req: Request, res: Response, next: NextFunction) => {
+    const {id} = req.params;
+    const {comment: content} = req.body; 
+    const upadtedComment = await prisma.comment.update({
+      where: {id},
+      data: {
+        content,
+      }
+    });
+
+    return res.status(200).json({success: true, data: upadtedComment});
+  }
 };

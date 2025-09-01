@@ -14,18 +14,54 @@ datasource db {
 }
 
 model Blog {
-  id             String    @id @default(cuid())
-  title          String
-  content        Json      // Storing Tiptap JSON content
-  excerpt        String
-  authorId       String
-  author         String
-  tags           String[]  // Array of tags
-  status         String    // e.g., "published", "draft"
-  featuredImage  String?
-  readingTime    Int
-  engagement     Json      // { likes, bookmarks, comments, views, shares }
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  publishedAt    DateTime?  
+  id            String      @id @default(cuid())
+  title         String
+  content       Json // Storing Tiptap JSON content
+  excerpt       String
+  authorId      String
+  author        String
+  tags          String[] // Array of tags
+  status        String // e.g., "published", "draft"
+  featuredImage String?
+  readingTime   Int
+  views         Int         @default(0)
+  comments      Comment[]
+  likes         Like[]
+  bookmarks     Bookmarks[]
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  publishedAt   DateTime?
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  blogId    String
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  blog Blog @relation(fields: [blogId], references: [id])
+}
+
+model Like {
+  id        String   @id @default(cuid())
+  blogId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  blog Blog @relation(fields: [blogId], references: [id])
+
+  @@unique([blogId, userId])
+}
+
+model Bookmarks {
+  id        String   @id @default(cuid())
+  blogId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  blog Blog @relation(fields: [blogId], references: [id])
+
+  @@unique([blogId, userId])
 }
