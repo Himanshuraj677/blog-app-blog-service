@@ -317,10 +317,10 @@ export const blogController = {
   
   deleteCommentBlog: async(req: Request, res: Response, next: NextFunction) => {
     const {id} = req.params;
-    const deletedComment = await prisma.comment.delete({
+    await prisma.comment.delete({
       where: {id}
     });
 
-    return res.status(200).json({success: true, data: deletedComment});
+    return res.status(200).json({success: true, data: null});
   }
 };
