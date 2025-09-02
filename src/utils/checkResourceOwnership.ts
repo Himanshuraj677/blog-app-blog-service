@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response } from "express";
-import { prisma } from "../config/db";
+import { prisma } from "../config/db.js";
 
 export const checkResourceOwnership =  {
     blog : async (req: Request, res: Response, next: NextFunction) => {
