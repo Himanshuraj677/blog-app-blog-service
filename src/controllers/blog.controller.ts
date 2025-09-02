@@ -1,7 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import { readingTimeFromTiptap } from "../utils/readingTimeEstimator.js";
 import { prisma } from "../config/db.js";
-import { success } from "zod";
 
 export const blogController = {
   // ✅ Create Blog
@@ -19,8 +18,8 @@ export const blogController = {
       title,
       content,
       excerpt,
-      authorId: req?.user?.id || "7477474",
-      author: req?.user?.name || "Anonymous user",
+      authorId: req?.user?.id,
+      author: req?.user?.name,
       tags,
       status,
       featuredImage,
@@ -79,7 +78,7 @@ export const blogController = {
 
   // ✅ Get all blogs (with filters and pagination)
   getAllBlogs: async (req: Request, res: Response, next: NextFunction) => {
-    const { status, tag, page = "1", limit = "10" } = req.query;
+    const { status="published", tag, page = "1", limit = "10" } = req.query;
     const pageNum = Number(page);
     const limitNum = Number(limit);
     const skip = (pageNum - 1) * limitNum;
@@ -196,41 +195,92 @@ export const blogController = {
   // ✅ Like blog
   likeBlog: async (req: Request, res: Response, next: NextFunction) => {
     const { id } = req.params;
-    console.log(id);
-    const blog = await prisma.blog.findUnique({ where: { id } });
+    const userId = req?.user?.id;
 
+    // check if blog exists
+    const blog = await prisma.blog.findUnique({ where: { id } });
     if (!blog) {
       return res.status(404).json({ success: false, error: "Blog not found" });
     }
 
-    const likeBlog = await prisma.like.create({
-      data: {
+    // check if user already liked
+    const existingLike = await prisma.like.findFirst({
+      where: {
         blogId: id,
-        userId: req?.user?.id || "someanonymoususer",
+        userId: userId,
       },
     });
 
+    if (existingLike) {
+      // 👎 user already liked → remove like
+      await prisma.like.delete({
+        where: { id: existingLike.id },
+      });
 
-    return res.status(200).json({ success: true, data: likeBlog });
-  },
+      return res.status(200).json({
+        success: true,
+        message: "Blog disliked successfully",
+        data: null,
+      });
+    } else {
+      // 👍 first time → create like
+      const newLike = await prisma.like.create({
+        data: {
+          blogId: id,
+          userId: userId,
+        },
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: "Blog liked successfully",
+        data: newLike,
+      });
+    }
+},
+
 
   // ✅ Bookmark blog
   bookmarkBlog: async (req: Request, res: Response, next: NextFunction) => {
     const { id } = req.params;
+    const userId = req?.user?.id;
     const blog = await prisma.blog.findUnique({ where: { id } });
 
     if (!blog) {
       return res.status(404).json({ success: false, error: "Blog not found" });
     }
 
-    const bookmarkBlog = await prisma.bookmarks.create({
-      data: {
+    const existingBookmark = await prisma.bookmarks.findFirst({
+      where: {
         blogId: id,
-        userId: req?.user?.id || "someanonymoususer",
-      },
-    });
+        userId 
+      }
+    })
 
-    return res.status(200).json({ success: true, data: bookmarkBlog });
+    if (existingBookmark) {
+      await prisma.bookmarks.delete({
+        where: {
+          id: existingBookmark.id
+        }
+      })
+
+      return res.status(200).json({
+        success: true,
+        message: "Blog removed from bookmark successfully",
+        data: null,
+      });
+    }
+    else {
+      const bookmarkBlog = await prisma.bookmarks.create({
+        data: {
+          blogId: id,
+          userId: req?.user?.id,
+        },
+      });
+  
+      return res.status(200).json({ success: true, message: "Blog is bookmarked", data: bookmarkBlog });
+    }
+
   },
 
   commentBlog: async (req: Request, res: Response, next: NextFunction) => {
@@ -239,7 +289,7 @@ export const blogController = {
     const commentBlog = await prisma.comment.create({
       data: {
         blogId: id,
-        userId: req?.user?.id || "someanonymoususer",
+        userId: req?.user?.id,
         content
       }
     });
@@ -249,7 +299,12 @@ export const blogController = {
 
   updateCommentBlog: async(req: Request, res: Response, next: NextFunction) => {
     const {id} = req.params;
-    const {comment: content} = req.body; 
+    const {comment: content} = req.body;
+    const checkComment = await prisma.comment.findUnique({
+      where: {id}
+    })
+
+    if (!checkComment) return res.status(404).json({success: false, message: "comment is not found"});
     const upadtedComment = await prisma.comment.update({
       where: {id},
       data: {
@@ -258,5 +313,14 @@ export const blogController = {
     });
 
     return res.status(200).json({success: true, data: upadtedComment});
+  }, 
+  
+  deleteCommentBlog: async(req: Request, res: Response, next: NextFunction) => {
+    const {id} = req.params;
+    const deletedComment = await prisma.comment.delete({
+      where: {id}
+    });
+
+    return res.status(200).json({success: true, data: deletedComment});
   }
 };

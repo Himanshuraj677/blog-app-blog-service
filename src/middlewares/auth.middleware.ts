@@ -2,13 +2,14 @@ import { Request, Response, NextFunction } from "express";
 
 export const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    console.log("I am in middleware")
     const cookie = req.headers.cookie;
-
+    if (!cookie) {
+      return res.status(403).json({success: false, message: "Unauthorized", redirect: '/?login=true'});
+    }
     const authRes = await fetch(`${process.env.AUTH_SERVICE}/api/me`, {
       method: "GET",
       headers: {
-        cookie: cookie || "",
+        cookie: cookie,
       },
     });
 
