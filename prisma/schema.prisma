@@ -20,6 +20,7 @@ model Blog {
   excerpt       String
   authorId      String
   author        String
+  author_image  String?
   tags          String[] // Array of tags
   status        String // e.g., "published", "draft"
   featuredImage String?
