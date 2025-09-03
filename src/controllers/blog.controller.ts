@@ -83,6 +83,8 @@ export const blogController = {
       title: updatedBlog.title,
       excerpt: updatedBlog.excerpt,
       content: updatedBlog.content,
+      tags: updatedBlog.tags,
+      readingTime: updatedBlog.readingTime,
       featuredImage: updatedBlog.featuredImage,
       createdAt: updatedBlog.createdAt,
       engagement: {
@@ -132,9 +134,11 @@ export const blogController = {
         excerpt: true,
         featuredImage: true,
         authorId: true,
+        tags: true,
         author_image: true,
         createdAt: true,
         views: true,
+        readingTime: true,
         author: true,
         _count: {
           select: {
@@ -181,6 +185,8 @@ export const blogController = {
       title: blog.title,
       excerpt: blog.excerpt,
       featuredImage: blog.featuredImage,
+      tags: blog.tags,
+      readingTime: blog.readingTime,
       createdAt: blog.createdAt,
       author: {
         id: blog.authorId,
@@ -278,18 +284,13 @@ export const blogController = {
     }
 
     // check if user already liked
-    const existingLike = await prisma.like.findFirst({
-      where: {
-        blogId: id,
-        userId: userId,
-      },
+    const existingLike = await prisma.like.findUnique({
+      where: { blogId_userId: { blogId: id, userId } },
     });
 
     if (existingLike) {
       // 👎 user already liked → remove like
-      await prisma.like.delete({
-        where: { id: existingLike.id },
-      });
+      await prisma.like.deleteMany({ where: { blogId: id, userId } })
 
       return res.status(200).json({
         success: true,
