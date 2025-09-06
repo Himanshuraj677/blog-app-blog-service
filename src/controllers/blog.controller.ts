@@ -109,116 +109,150 @@ export const blogController = {
 
   // ✅ Get all blogs (with filters and pagination)
   getAllBlogs: async (req: Request, res: Response, next: NextFunction) => {
-    const { status = "published", tag, page = "1", limit = "10" } = req.query;
-    const pageNum = Number(page);
-    const limitNum = Number(limit);
-    const skip = (pageNum - 1) * limitNum;
+    try {
+      const {
+        status = "published",
+        tag,
+        page = "1",
+        limit = "10",
+        filter,
+      } = req.query;
+      const pageNum = Number(page);
+      const limitNum = Number(limit);
+      const skip = (pageNum - 1) * limitNum;
 
-    // Get total count of blogs matching filter
-    const totalBlogs = await prisma.blog.count({
-      where: {
+      let where: any = {
         status: status ? String(status) : undefined,
         tags: tag ? { has: String(tag) } : undefined,
-      },
-    });
+      };
 
-    // Fetch paginated blogs
-    const blogs = await prisma.blog.findMany({
-      where: {
-        status: status ? String(status) : undefined,
-        tags: tag ? { has: String(tag) } : undefined,
-      },
-      select: {
-        id: true,
-        title: true,
-        excerpt: true,
-        featuredImage: true,
-        authorId: true,
-        tags: true,
-        author_image: true,
-        createdAt: true,
-        views: true,
-        readingTime: true,
-        author: true,
-        _count: {
-          select: {
-            likes: true,
-            comments: true,
-            bookmarks: true,
-          },
+      if (filter === "mine" && req.user?.id) {
+        where.authorId = req.user.id;
+      }
+      // Handle liked or bookmarked filters
+      if ((filter === "liked" || filter === "bookmarked") && req.user?.id) {
+        let records: { blogId: string }[] = [];
+
+        if (filter === "liked" && req.user?.id) {
+          records = await prisma.like.findMany({
+            where: { userId: req.user.id },
+            select: { blogId: true },
+          });
+        } else if (filter === "bookmarked" && req.user?.id) {
+          records = await prisma.bookmarks.findMany({
+            where: { userId: req.user.id },
+            select: { blogId: true },
+          });
+        }
+        const blogIdsFilter = records.map((r) => r.blogId);
+        if (blogIdsFilter.length === 0) {
+          return res.status(200).json({
+            success: true,
+            data: [],
+            pagination: {
+              total: 0,
+              page: pageNum,
+              limit: limitNum,
+              totalPages: 0,
+              hasNextPage: false,
+              hasPrevPage: false,
+            },
+          });
+        }
+        where.id = { in: blogIdsFilter };
+      }
+      // Get total count
+      const totalBlogs = await prisma.blog.count({ where });
+
+      // Fetch blogs
+      const blogs = await prisma.blog.findMany({
+        where,
+        select: {
+          id: true,
+          title: true,
+          excerpt: true,
+          featuredImage: true,
+          authorId: true,
+          tags: true,
+          author_image: true,
+          createdAt: true,
+          views: true,
+          readingTime: true,
+          author: true,
+          _count: { select: { likes: true, comments: true, bookmarks: true } },
         },
-      },
-      orderBy: { createdAt: "desc" },
-      skip,
-      take: limitNum,
-    });
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limitNum,
+      });
 
-    let userLikes: string[] = [];
-    let userBookmarks: string[] = [];
-    if (req?.user?.id) {
-      const [likes, bookmarks] = await Promise.all([
-        prisma.like.findMany({
-          where: {
-            userId: req.user.id,
-            blogId: { in: blogs.map((blog) => blog.id) },
-          },
-          select: {
-            blogId: true,
-          },
-        }),
-        prisma.bookmarks.findMany({
-          where: {
-            userId: req.user.id,
-            blogId: { in: blogs.map((blog) => blog.id) },
-          },
-          select: {
-            blogId: true,
-          },
-        }),
-      ]);
-      userLikes = likes.map((like) => like.blogId);
-      userBookmarks = bookmarks.map((bookmark) => bookmark.blogId);
+      // Fetch user engagement for all returned blogs
+      let userLikes: string[] = [];
+      let userBookmarks: string[] = [];
+      if (req.user?.id) {
+        const [likes, bookmarks] = await Promise.all([
+          prisma.like.findMany({
+            where: {
+              userId: req.user.id,
+              blogId: { in: blogs.map((b) => b.id) },
+            },
+            select: { blogId: true },
+          }),
+          prisma.bookmarks.findMany({
+            where: {
+              userId: req.user.id,
+              blogId: { in: blogs.map((b) => b.id) },
+            },
+            select: { blogId: true },
+          }),
+        ]);
+        userLikes = likes.map((l) => l.blogId);
+        userBookmarks = bookmarks.map((b) => b.blogId);
+      }
+
+      // Map response
+      const blogResponses = blogs.map((blog) => ({
+        id: blog.id,
+        title: blog.title,
+        excerpt: blog.excerpt,
+        featuredImage: blog.featuredImage,
+        tags: blog.tags,
+        readingTime: blog.readingTime,
+        createdAt: blog.createdAt,
+        author: {
+          id: blog.authorId,
+          name: blog.author,
+          image: blog.author_image,
+        },
+        engagement: {
+          likes: blog._count.likes,
+          comments: blog._count.comments,
+          bookmarks: blog._count.bookmarks,
+          views: blog.views,
+        },
+        userEngagement: {
+          hasLiked: userLikes.includes(blog.id),
+          hasBookmarked: userBookmarks.includes(blog.id),
+        },
+      }));
+
+      const totalPages = Math.ceil(totalBlogs / limitNum);
+
+      return res.status(200).json({
+        success: true,
+        data: blogResponses,
+        pagination: {
+          total: totalBlogs,
+          page: pageNum,
+          limit: limitNum,
+          totalPages,
+          hasNextPage: pageNum < totalPages,
+          hasPrevPage: pageNum > 1,
+        },
+      });
+    } catch (error) {
+      next(error);
     }
-
-    const blogResponses = blogs.map((blog) => ({
-      id: blog.id,
-      title: blog.title,
-      excerpt: blog.excerpt,
-      featuredImage: blog.featuredImage,
-      tags: blog.tags,
-      readingTime: blog.readingTime,
-      createdAt: blog.createdAt,
-      author: {
-        id: blog.authorId,
-        name: blog.author,
-        image: blog.author_image,
-      },
-      engagement: {
-        likes: blog._count.likes,
-        comments: blog._count.comments,
-        bookmarks: blog._count.bookmarks,
-        views: blog.views,
-      },
-      userEngagement: {
-        hasLiked: userLikes.includes(blog.id),
-        hasBookmarked: userBookmarks.includes(blog.id),
-      },
-    }));
-
-    const totalPages = Math.ceil(totalBlogs / limitNum);
-
-    return res.status(200).json({
-      success: true,
-      data: blogResponses,
-      pagination: {
-        total: totalBlogs,
-        page: pageNum,
-        limit: limitNum,
-        totalPages,
-        hasNextPage: pageNum < totalPages,
-        hasPrevPage: pageNum > 1,
-      },
-    });
   },
 
   // ✅ Update blog
@@ -290,7 +324,7 @@ export const blogController = {
 
     if (existingLike) {
       // 👎 user already liked → remove like
-      await prisma.like.deleteMany({ where: { blogId: id, userId } })
+      await prisma.like.deleteMany({ where: { blogId: id, userId } });
 
       return res.status(200).json({
         success: true,
