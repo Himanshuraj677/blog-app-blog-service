@@ -16,6 +16,7 @@ export const authMiddleware = (
             redirect: "/?login=true",
           });
       }
+      console.log(`calling this api: ${process.env.AUTH_SERVICE}/api/me`)
       const authRes = await fetch(`${process.env.AUTH_SERVICE}/api/me`, {
         method: "GET",
         headers: {
