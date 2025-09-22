@@ -24,6 +24,7 @@ export const authMiddleware = (
       });
 
       const session = await authRes.json(); // only once
+      console.log("Production debug check", session);
 
       if (!authRes.ok || !session?.user) {
         if (optional) return next();
