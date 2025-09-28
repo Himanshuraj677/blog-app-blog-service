@@ -9,10 +9,22 @@ dotenv.config();
 
 const app = express();
 app.use(express.json());
+// Parse trusted origins from env
+const allowedOrigins = (process.env.TRUSTED_ORIGINS as string).split(",");
+
+// CORS middleware
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL as string,
-    credentials: true,
+    origin: (origin, callback) => {
+      // allow requests with no origin (e.g., Postman, curl)
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true, // important for cookies
   })
 );
 

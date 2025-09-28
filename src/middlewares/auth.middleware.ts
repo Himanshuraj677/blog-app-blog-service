@@ -16,22 +16,19 @@ export const authMiddleware = (
             redirect: "/?login=true",
           });
       }
-      console.log(`calling this api: ${process.env.AUTH_SERVICE}/api/me`)
-      const authRes = await fetch(`${process.env.AUTH_SERVICE}/api/me`, {
+      const authRes = await fetch(`${process.env.AUTH_SERVICE}/me`, {
         method: "GET",
         headers: {
           cookie: cookie,
         },
       });
-
       const session = await authRes.json(); // only once
-      console.log("Production debug check", session);
-
+      
       if (!authRes.ok || !session?.user) {
         if (optional) return next();
         return res
-          .status(401)
-          .json({ success: false, message: "Unauthorized" });
+        .status(401)
+        .json({ success: false, message: "Unauthorized" });
       }
       // attach user to req
       (req as any).user = session.user;
@@ -39,7 +36,6 @@ export const authMiddleware = (
       return next();
     } catch (err) {
       if (optional) return next();
-      console.error("Auth check failed:", err);
       return res.status(500).json({ message: "Internal server error" });
     }
   };
